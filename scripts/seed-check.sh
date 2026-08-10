@@ -35,17 +35,21 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-if [[ ! -f .env ]]; then
-  echo "No .env in the repo root. See README.md, \"Running it\"." >&2
-  exit 1
+# `.env` when there is one, the environment otherwise, and .env.example's value
+# as the last resort -- the same three-step shape scripts/integration.sh and
+# scripts/e2e.sh use. This file used to require `.env` outright, which was fine
+# locally and wrong on CI: the integration job hands DATABASE_URL in through the
+# job's `env:` block and never writes a dotenv file, so the check exited 1 with
+# one line of output before it read a single row. A lane that cannot run where it
+# is meant to run is not a lane.
+if [[ -f .env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . ./.env
+  set +a
 fi
 
-set -a
-# shellcheck disable=SC1091
-. ./.env
-set +a
-
-: "${DATABASE_URL:?DATABASE_URL is not set in .env}"
+export DATABASE_URL="${DATABASE_URL:-postgresql://kan:kan@localhost:5437/kan?schema=public}"
 
 # Prisma's URL carries `?schema=public`, which libpq rejects outright.
 PSQL_URL="${DATABASE_URL%%\?*}"
