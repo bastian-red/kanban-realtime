@@ -1,0 +1,33 @@
+{
+  "name": "@kan/realtime",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsc -p tsconfig.json --watch --preserveWatchOutput & node --watch dist/main.js",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@kan/board-ops": "workspace:*",
+    "@kan/board-store": "workspace:*",
+    "@kan/db": "workspace:*",
+    "@kan/ordering": "workspace:*",
+    "@kan/presence": "workspace:*",
+    "@kan/shared": "workspace:*",
+    "@socket.io/redis-adapter": "^8.3.0",
+    "ioredis": "^5.4.2",
+    "jsonwebtoken": "^9.0.2",
+    "socket.io": "^4.8.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@kan/config": "workspace:*",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^20.17.6",
+    "socket.io-client": "^4.8.1",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}

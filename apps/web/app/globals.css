@@ -1,0 +1,1148 @@
+/*
+ * The design system: primitives, palette, and every component rule.
+ *
+ * The identity is "plum on cement". A board is **operated**, not read: somebody
+ * has it open all afternoon, drags things across it, and needs to see at a glance
+ * which column is over its limit and who else is in there with them. That argues
+ * for a cool, slightly grey canvas that white cards sit on top of rather than
+ * disappear into, a dense-but-not-cramped type scale, and one accent that is
+ * never used for state -- because every column already has a state and the accent
+ * would compete with it.
+ *
+ * Plum (#a01a6d) is the accent for a reason beyond taste: a kanban board spends
+ * green on "done", amber on "approaching a limit" and red on "over it", so the
+ * brand colour has to come from outside that vocabulary or it will be read as a
+ * status the first time it appears next to one.
+ *
+ * Rules for editing this file:
+ *
+ *   - never hardcode a colour, size or duration in a component rule. Every one of
+ *     them is a token below;
+ *   - every foreground/background pair is measured by lib/contrast.test.ts, which
+ *     parses this file rather than a copy of the palette. Change a value and the
+ *     test tells you whether it still clears AA;
+ *   - state is never carried by colour alone, and here that is measured rather
+ *     than asserted. The WIP inks separate by **1.23:1 in greyscale in light and
+ *     1.02:1 in dark** -- which is to say they do not separate at all. A
+ *     deuteranopic reader looking at a column header sees one colour. So every WIP
+ *     state ships the words `wipStateFor` produced ("At limit 3/3"), every
+ *     presence chip ships initials and an activity word, and the drag placeholder
+ *     ships a label. Colour is the third channel, never the first;
+ *   - `--border` outlines controls and drop targets and clears 3:1 on all three
+ *     surfaces (WCAG 1.4.11). `--rule` is a hairline separator *inside* a surface,
+ *     where nothing is distinguished by it, and is deliberately not asserted.
+ *
+ * Fonts (Sora / Manrope / DM Mono) are wired in app/layout.tsx.
+ */
+
+/* ==========================================================================
+   Primitives -- identical in both colour schemes
+   ========================================================================== */
+
+:root {
+  /* Spacing, 4px base. Every padding, margin and gap comes from here. */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 20px;
+  --s-6: 24px;
+  --s-8: 32px;
+  --s-10: 40px;
+  --s-12: 48px;
+
+  /* Type scale. Smaller at the base than a reading app: a column of cards is
+     scanned, and 14px is where a card title stops wrapping onto three lines. */
+  --t-2xs: 11px;
+  --t-xs: 12px;
+  --t-sm: 13px;
+  --t-base: 14px;
+  --t-md: 16px;
+  --t-lg: 20px;
+  --t-xl: 26px;
+  --t-2xl: 32px;
+
+  --lh-tight: 1.2;
+  --lh-snug: 1.35;
+  --lh-normal: 1.55;
+
+  /* 4px. A board is a grid of small rectangles; anything rounder reads as a
+     chat bubble, and square reads as a spreadsheet. */
+  --radius: 4px;
+  --radius-lg: 8px;
+  --radius-pill: 999px;
+
+  --shadow-card: 0 1px 2px rgb(26 26 31 / 0.08);
+  --shadow-lift: 0 6px 16px rgb(26 26 31 / 0.16);
+
+  --dur-fast: 120ms;
+  --dur: 180ms;
+  --ease: cubic-bezier(0.2, 0, 0.2, 1);
+
+  --measure: 68ch;
+  --column-width: 288px;
+
+  /* --- Light palette ---------------------------------------------------- */
+  --bg: #ecedf0;
+  --surface: #ffffff;
+  --surface-2: #e2e4e9;
+  --text: #1a1a1f;
+  --muted: #54545f;
+  --border: #7c7e88;
+  --rule: #d3d5dc;
+  --accent: #a01a6d;
+  --accent-ink: #ffffff;
+  --accent-soft: #f6e4ef;
+
+  /* Column state. Always rendered beside the words wipStateFor produced. */
+  --wip-under: #54545f;
+  --wip-at: #8a4b00;
+  --wip-over: #a3231c;
+  --ok: #1c6b45;
+
+  /* Presence and label hues. Used as rings, chip borders and 2px rails --
+     never as a background with text on it, and never as the only signal. */
+  --hue-0: #a01a6d;
+  --hue-1: #1f5fa8;
+  --hue-2: #1c6b45;
+  --hue-3: #8a4b00;
+  --hue-4: #7a3ba8;
+  --hue-5: #0f6b78;
+  --hue-6: #a3231c;
+  --hue-7: #4a5568;
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #191621;
+    --surface: #221f2c;
+    --surface-2: #2c2838;
+    --text: #e6e3ec;
+    --muted: #a6a2b4;
+    --border: #7d7791;
+    --rule: #37324a;
+    --accent: #f4a3d6;
+    --accent-ink: #1a0f18;
+    --accent-soft: #34203a;
+
+    --wip-under: #a6a2b4;
+    --wip-at: #f0b357;
+    --wip-over: #ff9d94;
+    --ok: #6fd39d;
+
+    --hue-0: #f4a3d6;
+    --hue-1: #8ab8ee;
+    --hue-2: #6fd39d;
+    --hue-3: #f0b357;
+    --hue-4: #c4a2f0;
+    --hue-5: #67cfdd;
+    --hue-6: #ff9d94;
+    --hue-7: #a9b2c2;
+
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-lift: 0 6px 16px rgb(0 0 0 / 0.55);
+
+    color-scheme: dark;
+  }
+}
+
+/* ==========================================================================
+   Reset and document
+   ========================================================================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  /* No smooth scroll for anyone who asked not to have motion. */
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui), system-ui, sans-serif;
+  font-size: var(--t-base);
+  line-height: var(--lh-normal);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-weight: 600;
+  line-height: var(--lh-tight);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+h1 {
+  font-size: var(--t-xl);
+}
+h2 {
+  font-size: var(--t-lg);
+}
+h3 {
+  font-size: var(--t-md);
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/**
+ * One focus ring, everywhere, and it is never removed.
+ *
+ * `:focus-visible` rather than `:focus` so a pointer click does not leave a ring
+ * behind, and a 2px offset so the ring is visible against a card that already has
+ * a border. The board is fully keyboard-operable -- dnd-kit's keyboard sensor
+ * moves cards with the arrow keys -- so the ring is the only thing telling
+ * somebody which card they are about to move.
+ */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 100;
+  padding: var(--s-2) var(--s-4);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.skip-link:focus {
+  left: var(--s-4);
+  top: var(--s-2);
+}
+
+/** Numbers a reader compares: counts, positions, versions, latencies. */
+.num {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95em;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ==========================================================================
+   Shell
+   ========================================================================== */
+
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-5);
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.topbar-brand {
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: var(--t-md);
+  color: var(--text);
+  text-decoration: none;
+  letter-spacing: -0.02em;
+}
+
+.topbar-nav {
+  display: flex;
+  gap: var(--s-1);
+  margin-left: var(--s-4);
+}
+
+.topbar-link {
+  padding: var(--s-1) var(--s-3);
+  border-radius: var(--radius);
+  color: var(--muted);
+  text-decoration: none;
+  font-size: var(--t-sm);
+}
+
+.topbar-link:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.topbar-link[aria-current='page'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.topbar-user {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: var(--t-sm);
+  color: var(--muted);
+}
+
+.page {
+  flex: 1;
+  padding: var(--s-6) var(--s-5);
+}
+
+.page-narrow {
+  max-width: var(--measure);
+  margin: 0 auto;
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-4);
+  margin-bottom: var(--s-6);
+  flex-wrap: wrap;
+}
+
+.page-head > .grow {
+  flex: 1;
+  min-width: 220px;
+}
+
+.lede {
+  color: var(--muted);
+  font-size: var(--t-sm);
+  margin-top: var(--s-1);
+}
+
+/* ==========================================================================
+   Controls
+   ========================================================================== */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-4);
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--t-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.button:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.button-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.button-primary:hover:not(:disabled) {
+  /* Same colour, slightly lifted. A hover that changes the accent's hue would
+     need its own contrast measurement against the ink sitting on it. */
+  background: var(--accent);
+  box-shadow: var(--shadow-card);
+}
+
+.button-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.button-quiet:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.button-small {
+  min-height: 26px;
+  padding: var(--s-1) var(--s-2);
+  font-size: var(--t-xs);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  margin-bottom: var(--s-4);
+}
+
+.field label {
+  font-size: var(--t-sm);
+  font-weight: 500;
+}
+
+.field-hint {
+  font-size: var(--t-xs);
+  color: var(--muted);
+}
+
+input[type='text'],
+input[type='email'],
+input[type='password'],
+input[type='number'],
+input[type='date'],
+select,
+textarea {
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  min-height: 34px;
+  font: inherit;
+  font-size: var(--t-sm);
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+textarea {
+  min-height: 84px;
+  resize: vertical;
+  line-height: var(--lh-snug);
+}
+
+/* ==========================================================================
+   Surfaces
+   ========================================================================== */
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  padding: var(--s-5);
+}
+
+.notice {
+  display: flex;
+  gap: var(--s-2);
+  align-items: flex-start;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: var(--t-sm);
+  margin-bottom: var(--s-4);
+}
+
+/**
+ * The glyph is content, not decoration.
+ *
+ * It is rendered as a character in the markup rather than as a `::before`, so a
+ * screen reader announces "Saved" and "Error" rather than reading a colour it
+ * cannot see. See components/notice.tsx.
+ */
+.notice-ok {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.notice-error {
+  border-color: var(--wip-over);
+  color: var(--wip-over);
+}
+
+.empty {
+  padding: var(--s-8);
+  text-align: center;
+  color: var(--muted);
+  font-size: var(--t-sm);
+}
+
+/* ==========================================================================
+   Boards list
+   ========================================================================== */
+
+.board-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--s-4);
+}
+
+.board-card {
+  display: block;
+  padding: var(--s-4);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: inherit;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+
+.board-card:hover {
+  border-color: var(--border);
+  box-shadow: var(--shadow-card);
+}
+
+.board-card h2 {
+  font-size: var(--t-md);
+  margin-bottom: var(--s-2);
+}
+
+.board-card-meta {
+  display: flex;
+  gap: var(--s-3);
+  font-size: var(--t-xs);
+  color: var(--muted);
+}
+
+.role-tag {
+  display: inline-block;
+  padding: 0 var(--s-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  font-size: var(--t-2xs);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ==========================================================================
+   The board
+   ========================================================================== */
+
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  height: calc(100vh - 58px);
+}
+
+.board-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: 0 var(--s-5);
+  flex-wrap: wrap;
+}
+
+.board-columns {
+  display: flex;
+  gap: var(--s-4);
+  align-items: flex-start;
+  overflow-x: auto;
+  padding: 0 var(--s-5) var(--s-5);
+  flex: 1;
+}
+
+.column {
+  flex: 0 0 var(--column-width);
+  width: var(--column-width);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+}
+
+/**
+ * The column a card is being dragged over.
+ *
+ * A dashed 2px outline and a shifted background, because the drop target has to
+ * be identifiable without colour: `--accent` here would leave a colour-blind
+ * reader with a column that looks marginally different from its neighbours. The
+ * dash pattern is the signal; the accent is the reinforcement.
+ */
+.column-over {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+  background: var(--accent-soft);
+}
+
+.column-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-3) var(--s-3) var(--s-2);
+}
+
+.column-name {
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-weight: 600;
+  font-size: var(--t-sm);
+  letter-spacing: 0.01em;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/**
+ * The WIP chip: a word and a count, coloured.
+ *
+ * The label comes from `wipStateFor` in @kan/shared and is always rendered. The
+ * colours below separate by 1.23:1 in greyscale, which is to say not at all --
+ * see the header. Reading the state off the colour is not something this design
+ * asks anybody to do.
+ */
+.wip {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--t-2xs);
+  padding: 0 var(--s-2);
+  border-radius: var(--radius-pill);
+  border: 1px solid currentcolor;
+  white-space: nowrap;
+}
+
+.wip-none,
+.wip-under {
+  color: var(--wip-under);
+}
+.wip-at {
+  color: var(--wip-at);
+}
+.wip-over {
+  color: var(--wip-over);
+}
+
+.column-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0 var(--s-2) var(--s-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  overflow-y: auto;
+  min-height: var(--s-12);
+}
+
+.column-foot {
+  padding: 0 var(--s-2) var(--s-2);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: var(--s-3);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+
+.card:hover {
+  border-color: var(--border);
+}
+
+.card-dragging {
+  opacity: 0.4;
+}
+
+/**
+ * Where the card will land.
+ *
+ * A labelled placeholder rather than a coloured gap: the word "Drop here" is
+ * inside it, so the destination is legible with no colour perception at all and
+ * to a screen reader following dnd-kit's live region.
+ */
+.card-placeholder {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius);
+  padding: var(--s-3);
+  font-size: var(--t-xs);
+  color: var(--muted);
+  text-align: center;
+}
+
+/**
+ * The title is a button, and the drag handle is a different button.
+ *
+ * Splitting them is a keyboard decision rather than a visual one: dnd-kit's
+ * keyboard sensor claims the space bar to lift a card, so a single control that
+ * was both the drag source and the edit trigger would have to make space mean two
+ * things. One Tab reaches the title, the next reaches the handle.
+ */
+.card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+}
+
+.card-title {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  font-size: var(--t-sm);
+  line-height: var(--lh-snug);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.card-title:disabled {
+  cursor: default;
+}
+
+.card-handle {
+  flex: 0 0 auto;
+  border: 0;
+  background: none;
+  padding: 0 var(--s-1);
+  color: var(--muted);
+  font-size: var(--t-md);
+  line-height: 1;
+  cursor: grab;
+  /* 24px, which is the WCAG 2.2 target-size minimum. A six-dot glyph is about
+     nine pixels wide on its own. */
+  min-width: 24px;
+  min-height: 24px;
+}
+
+.card-handle:active {
+  cursor: grabbing;
+}
+
+/** The inline form a composer button turns into. */
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  width: 100%;
+}
+
+.composer-input {
+  width: 100%;
+}
+
+/** The trailing column that holds "add a list". Not a real column. */
+.column-new {
+  background: none;
+  border: 1px dashed var(--border);
+  padding: var(--s-3);
+  justify-content: flex-start;
+}
+
+.board-foot {
+  padding: 0 var(--s-5) var(--s-8);
+}
+
+.card-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  font-size: var(--t-2xs);
+  color: var(--muted);
+}
+
+.card-labels {
+  display: flex;
+  gap: var(--s-1);
+  flex-wrap: wrap;
+}
+
+/**
+ * A label chip.
+ *
+ * The name is always written out. The hue is a 2px rail on the leading edge
+ * rather than a fill, which keeps the text on `--surface` where it is measured,
+ * and means eight labels on one card are still eight readable words.
+ */
+.label-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  padding: 0 var(--s-2) 0 var(--s-1);
+  border-left: 2px solid var(--hue-0);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--surface-2);
+  font-size: var(--t-2xs);
+  color: var(--text);
+}
+
+.hue-0 {
+  border-left-color: var(--hue-0);
+}
+.hue-1 {
+  border-left-color: var(--hue-1);
+}
+.hue-2 {
+  border-left-color: var(--hue-2);
+}
+.hue-3 {
+  border-left-color: var(--hue-3);
+}
+.hue-4 {
+  border-left-color: var(--hue-4);
+}
+.hue-5 {
+  border-left-color: var(--hue-5);
+}
+.hue-6 {
+  border-left-color: var(--hue-6);
+}
+.hue-7 {
+  border-left-color: var(--hue-7);
+}
+
+.due {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: var(--t-2xs);
+}
+
+.due-overdue {
+  color: var(--wip-over);
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   Presence
+   ========================================================================== */
+
+.presence {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+
+.presence-list {
+  display: flex;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  gap: var(--s-1);
+}
+
+/**
+ * One person.
+ *
+ * Initials inside, a hue ring outside, and an activity word in the tooltip and
+ * the accessible name. Three channels, because a row of eight coloured dots is
+ * one channel and it is the one a deuteranopic reader does not have.
+ */
+.presence-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-pill);
+  border: 2px solid var(--hue-0);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--t-2xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.presence-chip.hue-0 {
+  border-color: var(--hue-0);
+}
+.presence-chip.hue-1 {
+  border-color: var(--hue-1);
+}
+.presence-chip.hue-2 {
+  border-color: var(--hue-2);
+}
+.presence-chip.hue-3 {
+  border-color: var(--hue-3);
+}
+.presence-chip.hue-4 {
+  border-color: var(--hue-4);
+}
+.presence-chip.hue-5 {
+  border-color: var(--hue-5);
+}
+.presence-chip.hue-6 {
+  border-color: var(--hue-6);
+}
+.presence-chip.hue-7 {
+  border-color: var(--hue-7);
+}
+
+/** Somebody mid-drag. A dashed ring, not a different colour. */
+.presence-dragging {
+  border-style: dashed;
+}
+
+.presence-summary {
+  font-size: var(--t-xs);
+  color: var(--muted);
+}
+
+/** Live connection state. A word, always; the dot is decoration beside it. */
+.connection {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-size: var(--t-xs);
+  color: var(--muted);
+}
+
+.connection-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  border: 1px solid currentcolor;
+}
+
+.connection-live {
+  color: var(--ok);
+}
+
+.connection-live .connection-dot {
+  background: currentcolor;
+}
+
+.connection-down {
+  color: var(--wip-over);
+}
+
+/* ==========================================================================
+   Activity feed
+   ========================================================================== */
+
+.activity {
+  width: 320px;
+  flex: 0 0 320px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  padding: var(--s-4);
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+.activity h2 {
+  font-size: var(--t-sm);
+  margin-bottom: var(--s-3);
+}
+
+.activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.activity-item {
+  font-size: var(--t-xs);
+  line-height: var(--lh-snug);
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid var(--rule);
+}
+
+.activity-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.activity-actor {
+  font-weight: 600;
+}
+
+.activity-when {
+  display: block;
+  color: var(--muted);
+  font-size: var(--t-2xs);
+  margin-top: 2px;
+}
+
+/* ==========================================================================
+   Tables (members, status)
+   ========================================================================== */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-sm);
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: var(--s-2) var(--s-3);
+  border-bottom: 1px solid var(--rule);
+}
+
+.table th {
+  font-size: var(--t-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/**
+ * Row hover uses `--rule`, not `--surface-2`.
+ *
+ * A sibling project tinted rows with its second surface and pushed the status
+ * ink sitting in them under AA -- caught by axe only because a pointer happened
+ * to be resting on a row when the scan ran. Nothing coloured is ever painted on
+ * a background this file has not measured.
+ */
+.table tbody tr:hover {
+  background: color-mix(in srgb, var(--rule) 45%, transparent);
+}
+
+.status-ok {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.status-fail {
+  color: var(--wip-over);
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   Auth pages
+   ========================================================================== */
+
+.auth {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--s-6);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-lg);
+  padding: var(--s-8);
+}
+
+.auth-card h1 {
+  font-size: var(--t-lg);
+  margin-bottom: var(--s-2);
+}
+
+.auth-foot {
+  margin-top: var(--s-5);
+  font-size: var(--t-sm);
+  color: var(--muted);
+}
+
+/* ==========================================================================
+   Layout helpers
+   ========================================================================== */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.spread {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+.grow {
+  flex: 1;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.board-body {
+  display: flex;
+  gap: var(--s-4);
+  flex: 1;
+  min-height: 0;
+  padding-right: var(--s-5);
+}
+
+@media (max-width: 900px) {
+  .board-body {
+    flex-direction: column;
+    padding-right: 0;
+  }
+  .activity {
+    width: auto;
+    flex: none;
+    margin: 0 var(--s-5);
+  }
+}

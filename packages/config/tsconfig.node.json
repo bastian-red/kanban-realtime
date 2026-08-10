@@ -1,0 +1,27 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    // Node16, not CommonJS + Node. The classic `Node` resolver predates the
+    // `exports` field and cannot see a subpath: `@kan/shared/server` resolves at
+    // runtime and fails to typecheck, with TypeScript reporting that the types
+    // exist but "could not be resolved under your current moduleResolution
+    // setting". That subpath is not optional — it is the boundary that keeps
+    // `node:crypto` out of the browser bundle.
+    //
+    // Emit is unchanged: none of these packages sets `"type": "module"`, so Node16
+    // compiles them as CommonJS, and relative imports still need no file
+    // extension.
+    //
+    // This is also why services/ordering is the one package built with tsup
+    // rather than tsc: its only dependency, `fractional-indexing`, is ESM-only,
+    // and a CommonJS `require()` of an ESM package throws ERR_REQUIRE_ESM at
+    // runtime rather than at build. See services/ordering/README.md.
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  }
+}

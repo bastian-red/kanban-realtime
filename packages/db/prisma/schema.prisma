@@ -1,0 +1,229 @@
+// The board's data model.
+//
+// Two decisions run through the whole file and are worth reading before the
+// tables:
+//
+// 1. **`position` is a string, not an integer.** It is a base62 fractional index
+//    (services/ordering). Inserting a card between two others generates a key
+//    that sorts between their keys and touches exactly one row; with integers,
+//    every following row in the column has to be renumbered, and two clients
+//    renumbering at once is the conflict this project exists to prevent. The
+//    column is `text` with a `CHECK` and a `UNIQUE` alongside it, both added by
+//    the `board_invariants` migration -- see the notes there for why they are not
+//    optional.
+//
+// 2. **Archiving is a timestamp, not a delete.** `archivedAt` on lists and cards.
+//    The activity feed is a permanent record ("Ana moved Fix login to Doing"),
+//    and a row deleted out from under it would either break the feed or force it
+//    to carry nullable joins forever. Cascades below are for deleting a *board*,
+//    which is the one destructive act the product offers.
+//
+// Everything Prisma cannot express -- the CHECK constraints, the partial unique
+// index that allows one OWNER per board -- lives in
+// `migrations/20260807121000_board_invariants/migration.sql`. Prisma keeps that
+// file because `prisma migrate` never rewrites an applied migration; it is the
+// same pattern the sibling projects use for their invariants.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/client"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Migrations cannot run through a transaction-mode pooler. Locally this is the
+  // same value as `url`; in front of a pooler it is the provider's direct URL.
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+enum BoardRole {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+enum ActivityType {
+  BOARD_CREATED
+  BOARD_RENAMED
+  MEMBER_ADDED
+  MEMBER_ROLE_CHANGED
+  MEMBER_REMOVED
+  LIST_CREATED
+  LIST_RENAMED
+  LIST_MOVED
+  LIST_ARCHIVED
+  CARD_CREATED
+  CARD_UPDATED
+  CARD_MOVED
+  CARD_ARCHIVED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String   @map("password_hash")
+  // The reader's zone, stored per user rather than read from the browser. "Is
+  // this card overdue?" is a question about the reader's calendar day, and the
+  // server renders the board.
+  timeZone     String   @default("Europe/Madrid") @map("time_zone")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  memberships    BoardMember[]
+  assignedCards  Card[]        @relation("CardAssignee")
+  activities     Activity[]
+
+  @@map("users")
+}
+
+model Board {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  members    BoardMember[]
+  lists      List[]
+  labels     Label[]
+  activities Activity[]
+
+  @@map("boards")
+}
+
+// Who may do what, one row per person per board.
+//
+// There is deliberately no `ownerId` column on Board. An owner is a membership
+// with `role = OWNER`, and the partial unique index in the invariants migration
+// allows exactly one of them per board. The alternative -- an `ownerId` on Board
+// *and* an OWNER membership row -- is two facts that have to agree, and they stop
+// agreeing the first time someone transfers a board and updates only one of them.
+model BoardMember {
+  id        String    @id @default(cuid())
+  boardId   String    @map("board_id")
+  userId    String    @map("user_id")
+  role      BoardRole
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, userId])
+  @@index([userId])
+  @@map("board_members")
+}
+
+model List {
+  id         String    @id @default(cuid())
+  boardId    String    @map("board_id")
+  name       String
+  // Fractional index. See the header.
+  position   String
+  // Null means no limit. Zero is refused by a CHECK: a list nothing may enter is
+  // a closed list, and the product has archiving for that.
+  wipLimit   Int?      @map("wip_limit")
+  archivedAt DateTime? @map("archived_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards Card[]
+
+  // The uniqueness that makes a collision *observable*. Without it two lists can
+  // share a position and the board's column order becomes whatever the query
+  // planner produced that day.
+  @@unique([boardId, position])
+  @@index([boardId, archivedAt])
+  @@map("lists")
+}
+
+model Card {
+  id          String    @id @default(cuid())
+  listId      String    @map("list_id")
+  title       String
+  description String?
+  // Fractional index, unique within the list. See the header and the invariants
+  // migration.
+  position    String
+  // Optimistic lock. Every mutation carries the version the client believes it is
+  // editing; a mismatch is rejected with STALE rather than overwritten. This is
+  // what stops two people editing one card's title from silently losing a change,
+  // which is a different failure from two people competing for a gap between
+  // cards, and fractional indexing has nothing to say about it.
+  version     Int       @default(0)
+  // A `date`, not a timestamp. A card is due on a day; the instant that day maps
+  // to depends on where the reader is standing. See packages/shared/src/time.
+  dueOn       DateTime? @map("due_on") @db.Date
+  assigneeId  String?   @map("assignee_id")
+  archivedAt  DateTime? @map("archived_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  list     List        @relation(fields: [listId], references: [id], onDelete: Cascade)
+  // SetNull, not Cascade: deleting a person must not delete the work. A card with
+  // no assignee is a card anybody can pick up, which is the right outcome.
+  assignee User?       @relation("CardAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  labels   CardLabel[]
+
+  @@unique([listId, position])
+  @@index([listId, archivedAt])
+  @@index([assigneeId])
+  @@map("cards")
+}
+
+model Label {
+  id        String @id @default(cuid())
+  boardId   String @map("board_id")
+  name      String
+  // An index into the board's palette, not a hex colour. A colour chosen by a
+  // user is a colour nobody checked against the background, and this project's
+  // stylesheet is contrast-gated. A slot also lets dark mode pick a different
+  // value for the same label without rewriting a row.
+  colorSlot Int    @map("color_slot")
+
+  board Board       @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  cards CardLabel[]
+
+  @@unique([boardId, name])
+  @@map("labels")
+}
+
+model CardLabel {
+  cardId  String @map("card_id")
+  labelId String @map("label_id")
+
+  card  Card  @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, labelId])
+  @@index([labelId])
+  @@map("card_labels")
+}
+
+// What happened, kept forever.
+//
+// `subject` is denormalised on purpose: "Ana moved **Fix login** to Doing" has to
+// keep saying "Fix login" after the card is renamed or archived. The feed is a
+// record of what happened, not a live join, and storing the title at the moment
+// of the event is what makes the history immutable.
+model Activity {
+  id        String       @id @default(cuid())
+  boardId   String       @map("board_id")
+  actorId   String       @map("actor_id")
+  type      ActivityType
+  subject   String
+  detail    String?
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  // Restrict, not Cascade: deleting a user must not rewrite history. In practice
+  // users are not deleted by the product; if they ever are, this turns a silent
+  // hole in the feed into an error somebody has to decide about.
+  actor User  @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  // The feed is always read newest-first for one board, and paginated by cursor.
+  // This is the index that query walks.
+  @@index([boardId, createdAt(sort: Desc)])
+  @@map("activities")
+}
