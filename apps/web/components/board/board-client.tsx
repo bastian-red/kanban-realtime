@@ -7,6 +7,7 @@ import {
   closestCorners,
   useSensor,
   useSensors,
+  type DragCancelEvent,
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
@@ -17,6 +18,12 @@ import { CLIENT_EVENTS, can, dueFor as computeDue, today } from '@kan/shared';
 import { useCallback, useMemo, useReducer, useState } from 'react';
 
 import { neighboursFor, reduce, type BoardEvent } from '../../lib/board-state';
+import {
+  cancelledMessage,
+  droppedMessage,
+  movedOverMessage,
+  pickedUpMessage,
+} from '../../lib/drag-announcements';
 import { useBoardSocket } from '../../lib/use-board-socket';
 import { Notice } from '../notice';
 import { PresenceBar } from '../presence-bar';
@@ -266,6 +273,31 @@ export function BoardClient({
 
   const feed = useMemo(() => activity.slice(0, 40), [activity]);
 
+  /**
+   * What a keyboard reader hears, in words rather than in cuids.
+   *
+   * `@dnd-kit`'s defaults announce `active.id`, and every id here is a cuid, so
+   * the out-of-the-box experience of the board's primary interaction is a
+   * database key read aloud. The sentences are built in `lib/drag-announcements`
+   * so they are pure and unit-tested; this only hands them the current board.
+   *
+   * `@dnd-kit` renders them into a `role="status"` live region, which is also
+   * what makes the two-browser drag spec deterministic: it waits for "Picked up"
+   * before pressing an arrow key rather than sleeping a guessed 200ms, which is
+   * the flake that failed on a loaded CI runner.
+   */
+  const announcements = useMemo(
+    () => ({
+      onDragStart: ({ active }: DragStartEvent) => pickedUpMessage(board, String(active.id)),
+      onDragOver: ({ active, over }: DragOverEvent) =>
+        movedOverMessage(board, String(active.id), over ? String(over.id) : null),
+      onDragEnd: ({ active, over }: DragEndEvent) =>
+        droppedMessage(board, String(active.id), over ? String(over.id) : null),
+      onDragCancel: ({ active }: DragCancelEvent) => cancelledMessage(board, String(active.id)),
+    }),
+    [board],
+  );
+
   return (
     <div className="board">
       <header className="board-head">
@@ -292,6 +324,7 @@ export function BoardClient({
 
       <div className="board-body">
         <DndContext
+          accessibility={{ announcements }}
           sensors={sensors}
           // `closestCorners` rather than the default rectangle intersection:
           // columns are tall and cards are short, and the default makes a card

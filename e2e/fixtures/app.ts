@@ -85,12 +85,50 @@ export async function secondBrowser(
 }
 
 /**
+ * dnd-kit's screen-reader live region.
+ *
+ * Rendered by `@dnd-kit/accessibility` and filled from the sentences in
+ * `apps/web/lib/drag-announcements.ts`. It is the only place in the DOM that says
+ * what the drag machinery believes is happening, which makes it the one honest
+ * thing to wait on.
+ *
+ * The `aria-live="assertive"` qualifier is not decoration. `components/notice.tsx`
+ * renders a success banner as `role="status"` too -- deliberately, a saved change
+ * should not interrupt -- and the board shows one after "Add member", which the
+ * two-browser drag spec does before it drags. A bare `getByRole('status')` there
+ * matches two elements and fails strict mode. dnd-kit's region is the assertive
+ * one, because a drag in progress does interrupt.
+ */
+export function dragAnnouncement(page: Page): Locator {
+  return page.getByRole('status').and(page.locator('[aria-live="assertive"]'));
+}
+
+/**
  * Move a card with the keyboard, the way dnd-kit's sensor expects.
  *
  * Space lifts, the arrows move, space drops. This exists as a helper because the
  * sequence is the test in several specs and because getting it wrong produces a
  * silent no-op -- the card stays put, the assertion fails, and nothing says the
  * lift never happened.
+ *
+ * **Every wait here is on an announcement, not on a clock.** The first version
+ * slept 150-200ms between keys, which passed locally for weeks and then failed on
+ * a loaded CI runner: the lift had not registered when `ArrowRight` arrived, the
+ * arrow went to the page instead of to the sensor, and the card never moved. A
+ * timeout tuned to one machine is not a synchronisation primitive, and dnd-kit
+ * already publishes its own state on every transition.
+ *
+ * What it waits for is the sentence **changing**, never a particular word in it,
+ * and that distinction was itself a failed attempt. Waiting for "Picked up" times
+ * out: the region holds one string, and dnd-kit fires `onDragOver` in the same
+ * tick as `onDragStart` because the card is immediately over its own column, so
+ * the pick-up sentence is overwritten by "X is over Backlog, 1 of 1" before any
+ * polling can see it. Waiting for "is over" fails the other way -- after the first
+ * arrow the text already matches, so every later press goes into the previous
+ * animation frame, which is the original bug with a nicer-looking wait in front of
+ * it. Only "different from what it said a moment ago" holds at every step,
+ * including the second `keyboardMove` in a test, where the region still carries
+ * "Dropped ..." from the first.
  */
 export async function keyboardMove(
   page: Page,
@@ -98,16 +136,29 @@ export async function keyboardMove(
   key: 'ArrowRight' | 'ArrowLeft' | 'ArrowDown' | 'ArrowUp',
   times = 1,
 ): Promise<void> {
+  const announcement = dragAnnouncement(page);
+
+  /** Press, and wait until the drag machinery says something new about it. */
+  const press = async (stroke: string): Promise<void> => {
+    // Trimmed, because `toHaveText` normalises whitespace on the value it reads
+    // and `textContent()` does not. Untrimmed, a sentence that differs only by a
+    // stray space would compare unequal and the wait would return immediately.
+    const before = ((await announcement.textContent()) ?? '').trim();
+    await page.keyboard.press(stroke);
+    await expect(announcement).not.toHaveText(before);
+  };
+
   await handle.focus();
-  await page.keyboard.press('Space');
-  for (let index = 0; index < times; index += 1) {
-    await page.keyboard.press(key);
-    // dnd-kit animates between positions and reads the layout after each step.
-    // Pressing the next key inside that window is how a two-column move lands one
-    // column short.
-    await page.waitForTimeout(150);
-  }
-  await page.keyboard.press('Space');
+  // The lift. Before it the region is empty, or holds the previous drag's last
+  // sentence; either way the sensor is not listening for arrows yet.
+  await press('Space');
+  for (let index = 0; index < times; index += 1) await press(key);
+  await press('Space');
+
+  // And the drop specifically, rather than "something changed". A cancelled drag
+  // also changes the text, and it leaves the card where it started with every
+  // wait above satisfied.
+  await expect(announcement).toContainText('Dropped');
 }
 
 /**

@@ -147,6 +147,16 @@ Firefox, and requires zero violations. Both engines, because Firefox's run is wh
 three scrollable regions on this board as keyboard-inaccessible (WCAG 2.1.1) and Chromium's
 did not.
 
+Axe cannot check the one that matters most here, though. Dragging a card is the app's primary
+interaction and it is fully keyboard-operable, which is where an automated audit stops — but
+`@dnd-kit`'s default announcements read `active.id` aloud, and every id on this board is a
+cuid. Operable and unusable is the worse of the two failures, because it passes the audit.
+`apps/web/lib/drag-announcements.ts` builds the sentences from the board instead
+(`Dropped Write the release notes into In progress, 2 of 2.`), as pure functions with 13 gate
+tests. Being real text rather than a timing artefact, it is also what the E2E drag waits on:
+`keyboardMove` presses a key and blocks until the live region says something new, which
+replaced a 150ms sleep that failed 3 runs in 45 on a single core.
+
 ## Architecture
 
 ```
@@ -232,7 +242,7 @@ docker compose -f infra/docker-compose.yml --profile app up -d --build
 Five lanes, different budgets.
 
 ```bash
-pnpm test                  # gate lane: 673 unit tests, no network, no database
+pnpm test                  # gate lane: 686 unit tests, no network, no database
 pnpm env:contract          # the environment contract, free and instant
 pnpm scan:invisible        # a character you cannot see is a bug you cannot review
 ./scripts/dev-smoke.sh     # boots the documented `pnpm dev` and asserts a live board
@@ -242,7 +252,7 @@ pnpm scan:invisible        # a character you cannot see is a bug you cannot revi
 
 | Lane        | Count | What only it can prove                                                |
 | ----------- | ----- | --------------------------------------------------------------------- |
-| Unit        | 673   | ordering arithmetic, the permission matrix, the board reducer         |
+| Unit        | 686   | ordering arithmetic, the permission matrix, the board reducer         |
 | Environment | 1     | every name the code reads is declared and documented                  |
 | Dev smoke   | 1     | the README's own command produces a working, live app                 |
 | Integration | 19    | concurrency, the optimistic lock, cross-replica delivery, TTLs        |
@@ -255,8 +265,12 @@ Three things this suite does deliberately:
   and the _next browser project_ — asserting about a card that has moved.
 - **Assertions are on content, never on a status code.** A broken app answers 200 with an
   error page, which is exactly what a missing `AUTH_SECRET` produces.
-- **Every proof has been shown to fail.** The adapter, the unique index and `dev.sh` were
-  each reverted and the corresponding lane watched go red before being restored.
+- **Every proof has been shown to fail.** The adapter, the unique index, `dev.sh`, the
+  gateway's cold-start build and the drag fixture's synchronisation were each reverted and the
+  corresponding lane watched go red before being restored. Reverting the gateway's `dev` script
+  to `tsc --watch & node --watch dist/main.js` makes `dev-smoke.sh` report
+  `realtime (:4100) never came up`; putting the drag fixture's `waitForTimeout` back and running
+  `taskset -c 0 ./scripts/e2e.sh --repeat-each=3` fails 3 of 45.
 
 ## Configuration
 

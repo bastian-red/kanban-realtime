@@ -141,6 +141,37 @@ for url in "${API_BASE_URL}/health" "${REALTIME_BASE_URL}/health" "${APP_BASE_UR
   fi
 done
 
+# --- Throw away every build output the apps have ----------------------------
+#
+# A fresh clone has no `apps/*/dist` and no `apps/web/.next`, and this script
+# exists to behave like a fresh clone. Leaving yesterday's build in place is the
+# same class of hole as leaving the environment in place: the check passes
+# because of state the repo does not carry.
+#
+# It is not hypothetical. `apps/realtime`'s dev script was
+#
+#     tsc --watch & node --watch dist/main.js
+#
+# which starts `node` on a file `tsc` has not written yet. With a warm `dist/`
+# that works every time; with a cold one `node` exits MODULE_NOT_FOUND
+# immediately and never picks the file up when tsc emits it a second later. It
+# passed here for as long as the directory happened to exist and failed on the
+# first CI runner that had never built the repo. The fix is `tsc && (tsc --watch
+# & node --watch ...)`; this deletion is what makes the failure reachable from a
+# developer's machine.
+#
+# Library builds under packages/ and services/ are left alone: turbo's `^build`
+# rebuilds them on every `dev` anyway, so their staleness is not a thing this can
+# observe, and deleting them turns a 40-second check into a three-minute one.
+echo "==> Removing app build outputs so this starts as cold as a fresh clone"
+for stale in apps/*/dist apps/*/.next; do
+  # Guarded on the glob actually matching, and rooted at $ROOT by the `cd` at the
+  # top of the file, so this cannot walk outside the repo.
+  [[ -e "$stale" ]] || continue
+  rm -rf "${ROOT:?}/${stale}"
+  echo "    removed ${stale}"
+done
+
 # --- Strip the environment and start ----------------------------------------
 #
 # Derived from .env.example rather than hardcoded, so a variable added next month

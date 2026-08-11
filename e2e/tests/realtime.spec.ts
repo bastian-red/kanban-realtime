@@ -7,6 +7,7 @@ import {
   column,
   createBoard,
   handleFor,
+  keyboardMove,
   openBoard,
   secondBrowser,
   signIn,
@@ -57,12 +58,13 @@ test.describe('live sync between two browsers', () => {
     // works about half the time, which is worse than not working. The keyboard
     // path is the same `onDragEnd`, and it is also the path a WCAG 2.1.1 failure
     // would show up in.
-    const handle = handleFor(page, 'Left', card);
-    await handle.focus();
-    await page.keyboard.press('Space');
-    await page.keyboard.press('ArrowRight');
-    await page.waitForTimeout(200);
-    await page.keyboard.press('Space');
+    //
+    // Through the fixture, which waits on dnd-kit's live region between key
+    // presses. This spec used to inline the sequence with a 200ms sleep after the
+    // lift and failed on CI run 31398397786 for exactly that reason: the lift had
+    // not registered, `ArrowRight` went to the page, and the assertion below
+    // reported "the card did not move" for a drag that never started.
+    await keyboardMove(page, handleFor(page, 'Left', card), 'ArrowRight');
 
     // The mover sees it. This alone would pass with the server switched off.
     await expect(cardIn(page, 'Right', card)).toBeVisible();

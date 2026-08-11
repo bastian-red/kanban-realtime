@@ -3,7 +3,15 @@ import { join } from 'node:path';
 
 import { expect, test, type Page } from '@playwright/test';
 
-import { addCard, cardIn, column, createBoard, handleFor, signIn } from '../fixtures/app';
+import {
+  addCard,
+  cardIn,
+  column,
+  createBoard,
+  handleFor,
+  keyboardMove,
+  signIn,
+} from '../fixtures/app';
 import { ANA, BRUNO } from '../fixtures/seed-facts';
 
 /**
@@ -80,13 +88,9 @@ test.describe('demo capture', () => {
     await shot(observer, 'before-the-drag');
 
     // The move, by keyboard: the same `onDragEnd` a mouse drag reaches, and the
-    // path that is reproducible frame to frame.
-    const handle = handleFor(page, 'In progress', card);
-    await handle.focus();
-    await page.keyboard.press('Space');
-    await page.keyboard.press('ArrowRight');
-    await page.waitForTimeout(200);
-    await page.keyboard.press('Space');
+    // path that is reproducible frame to frame. Through the fixture, which waits
+    // on dnd-kit's live region rather than on a clock.
+    await keyboardMove(page, handleFor(page, 'In progress', card), 'ArrowRight');
     await expect(cardIn(page, 'Done', card)).toBeVisible();
     await shot(page, 'after-the-drag');
 
