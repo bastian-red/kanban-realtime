@@ -153,8 +153,8 @@ const SPENT = {
     '#fbf8f3', // 003 learn, light
     '#f7f6fb', // 004 finance, light
     '#12111a', // 004 finance, dark
-    '#f3f1ec', // 006 chat, light
-    '#1a1c20', // 006 chat, dark
+    '#f4f1e8', // 006 chat, light
+    '#15191c', // 006 chat, dark
   ],
   accents: [
     '#4f46e5', // 001 light
@@ -168,8 +168,8 @@ const SPENT = {
     '#0f766e', // 003 learn light
     '#6d28d9', // 004 light
     '#a78bfa', // 004 dark
-    '#8a5200', // 006 light
-    '#f0b357', // 006 dark
+    '#0d6b85', // 006 chat light
+    '#63c9e6', // 006 chat dark
   ],
   faces: [
     'Fraunces',
@@ -183,9 +183,9 @@ const SPENT = {
     'Newsreader',
     'Public_Sans',
     'Roboto_Mono',
-    'Bricolage_Grotesque',
+    'Literata',
     'Figtree',
-    'Fira_Code',
+    'Geist_Mono',
   ],
 } as const;
 
