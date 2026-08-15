@@ -185,7 +185,7 @@ const SPENT = {
     'Roboto_Mono',
     'Literata',
     'Figtree',
-    'Geist_Mono',
+    'Azeret_Mono',
   ],
 } as const;
 
