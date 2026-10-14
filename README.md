@@ -284,13 +284,3 @@ fails if those two and the source ever disagree. The ones worth knowing:
 | `PRESENCE_TTL_SECONDS`       | 25      | must be **more than twice** the heartbeat, or one dropped packet evicts somebody who is still looking at the board. The gateway refuses to start otherwise |
 | `SOCKET_EVENT_RATE_LIMIT`    | 240     | events per minute per socket, in process memory rather than Redis: a socket lives on exactly one replica for its whole life                                |
 | `REALTIME_BASE_URL_2`        | —       | a second gateway replica, for `/status` to probe and for the integration lane to broadcast across                                                          |
-
-## Not deployed, on purpose
-
-This is one of thirteen portfolio projects, all published to GitHub and hosted nowhere. Free
-tiers do not stretch to thirteen deploys and paying for them buys nothing that this
-repository does not already show. What survives instead is the evidence that the thing is
-operable: a real `/health` on both services that checks its dependencies rather than its own
-pulse, a `/status` page fed by the same endpoints, a Dockerfile per service, a compose file
-that brings the whole stack up including a second replica, and CI that runs every lane above
-on every push.
